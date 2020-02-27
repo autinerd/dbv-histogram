@@ -33,7 +33,12 @@ uint32_t histogram[256];
 int main(int argc, char *argv[])
 {
     pgm picture;
-    getPgmPicture(argc > 0 ? argv[1] : "Britishblue.pgm", &picture);
+    char error;
+    if ((error = getPgmPicture(argc > 0 ? argv[1] : "Britishblue.pgm", &picture)) != 0)
+    {
+        printf("Datei konnte nicht geöffnet werden.\n");
+        return error;
+    }
     println("Breite: %u", picture.width);
     println("Höhe: %u", picture.height);
     println("Anzahl Pixel: %u", picture.height * picture.width);
