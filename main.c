@@ -1,9 +1,8 @@
 #include "pgm.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/ioctl.h>
-#include <unistd.h>
 #include <string.h>
+#include <math.h>
 
 #define println(format, ...) printf(format "\n", __VA_ARGS__)
 
@@ -18,12 +17,18 @@
 #define EIGHT_EIGHTS "█"
 #define HIST_CHAR_LEN 3
 
+#define HIST_HEIGHT 5
+
 void getHistogram(pgm *picture, uint32_t *buf);
-void generateHisto(uint32_t *buf, char *char_buf);
-uint32_t maxValue(uint32_t *buf);
+uint32_t maxValue();
 void printBlock(uint8_t block);
 void printHistogram(uint32_t *buf);
 uint8_t subtractSaturate(uint8_t a, uint8_t b);
+double calcBrightness(pgm *picture);
+double calcContrast(pgm *picture);
+double calcEntropy(pgm *picture);
+
+uint32_t histogram[256];
 
 int main(int argc, char *argv[])
 {
@@ -32,81 +37,72 @@ int main(int argc, char *argv[])
     println("Breite: %u", picture.width);
     println("Höhe: %u", picture.height);
     println("Anzahl Pixel: %u", picture.height * picture.width);
-    uint32_t buf[256];
-    getHistogram(&picture, buf);
+    getHistogram(&picture, histogram);
     printf("Histogramm: [");
     for (uint8_t i = 0; i < UINT8_MAX; i++)
     {
-        printf("%u, ", buf[i]);
+        printf("%u, ", histogram[i]);
     }
-    println("%u]", buf[UINT8_MAX]);
-    struct winsize w;
-    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
-    println("terminal width: %u", w.ws_col);
-    printHistogram(buf);
+    println("%u]", histogram[UINT8_MAX]);
+    printHistogram(histogram);
+    println("Helligkeit: %.2lf", calcBrightness(&picture));
+    println("Kontrast: %.2lf", calcContrast(&picture));
+    println("Entropie: %.2lf", calcEntropy(&picture));
     free(picture.map);
     return 0;
 }
 
-void getHistogram(pgm *picture, uint32_t *buf)
+void getHistogram(pgm *picture, uint32_t *histogram)
 {
     for (uint16_t i = 0; i <= 255; i++)
     {
-        buf[i] = 0;
+        histogram[i] = 0;
     }
     for (uint64_t i2 = 0; i2 < picture->height * picture->width; i2++)
     {
-        buf[picture->map[i2]]++;
+        histogram[picture->map[i2]]++;
     }
 }
 
-void generateHisto(uint32_t *buf, char *char_buf)
+double calcBrightness(pgm *picture)
 {
-    uint32_t max = maxValue(buf);
-
-    for (uint16_t i = 0; i <= 255; i++)
+    uint64_t sum = 0ULL;
+    for (uint16_t val = 0; val < 256; val++)
     {
-        switch (buf[i] * 8 / max)
-        {
-        case 0:
-            strcat(char_buf, ZERO_EIGHTS);
-            break;
-        case 1:
-            strcat(char_buf, ONE_EIGHTS);
-            break;
-        case 2:
-            strcat(char_buf, TWO_EIGHTS);
-            break;
-        case 3:
-            strcat(char_buf, THREE_EIGHTS);
-            break;
-        case 4:
-            strcat(char_buf, FOUR_EIGHTS);
-            break;
-        case 5:
-            strcat(char_buf, FIVE_EIGHTS);
-            break;
-        case 6:
-            strcat(char_buf, SIX_EIGHTS);
-            break;
-        case 7:
-            strcat(char_buf, SEVEN_EIGHTS);
-            break;
-        case 8:
-            strcat(char_buf, EIGHT_EIGHTS);
-            break;
-        default:
-            break;
-        }
+        sum += histogram[val] * val;
     }
+    return ((double)sum / (picture->height * picture->width));
 }
 
-uint32_t maxValue(uint32_t *buf)
+double calcContrast(pgm *picture)
+{
+    uint8_t brightness = (uint8_t)calcBrightness(picture);
+    uint64_t sum = 0UL;
+    for (uint16_t val = 0; val < 256; val++)
+    {
+        sum += histogram[val] * (val - brightness) * (val - brightness);
+    }
+    return sqrt(sum / (double)(picture->height * picture->width));
+}
+
+double calcEntropy(pgm *picture)
+{
+    double sum = 0.0;
+    double count = picture->height * picture->width;
+    for (uint16_t val = 0; val < 256; val++)
+    {
+        if (histogram[val] == 0) continue;
+        sum += (histogram[val] / count) * log2(histogram[val] / count);
+    }
+    return -sum;
+}
+
+uint32_t maxValue()
 {
     uint32_t max = 0;
     for (uint16_t i = 0; i <= 255; i++)
     {
-        max = (buf[i] > max) ? buf[i] : max;
+        max = (histogram[i] > max) ? histogram[i] : max;
     }
     return max;
 }
@@ -134,19 +130,13 @@ void printHistogram(uint32_t *buf)
     uint32_t max = maxValue(buf);
     for (uint16_t i = 0; i < 256; i++)
     {
-        scaled_data[i] = buf[i] * 24 / max;
+        scaled_data[i] = buf[i] * (8 * HIST_HEIGHT) / max;
     }
-    printf("Histogramm (skaliert): [");
-    for (uint8_t i = 0; i < UINT8_MAX; i++)
-    {
-        printf("%u, ", scaled_data[i]);
-    }
-    println("%u]", scaled_data[UINT8_MAX]);
     for (uint8_t i = 0; i < 4; i++)
     {
-        for (uint8_t j = 0; j < 3; j++)
+        for (uint8_t j = 0; j < HIST_HEIGHT; j++)
         {
-            if (j == 2)
+            if (j == HIST_HEIGHT - 1)
             {
                 printf("%3d ", i * 64);
             }
@@ -157,24 +147,10 @@ void printHistogram(uint32_t *buf)
             for (uint16_t k = 0; k < 64; k++)
             {
                 uint8_t temp;
-                switch (j)
-                {
-                case 0:
-                    temp = subtractSaturate(scaled_data[i * 64 + k], 16);
-                    printBlock(temp > 8 ? 8 : temp);
-                    break;
-                case 1:
-                    temp = subtractSaturate(scaled_data[i * 64 + k], 8);
-                    printBlock(temp > 8 ? 8 : temp);
-                    break;
-                case 2:
-                    printBlock(scaled_data[i * 64 + k] > 8 ? 8 : scaled_data[i * 64 + k]);
-                    break;
-                default:
-                    break;
-                }
+                temp = subtractSaturate(scaled_data[i * 64 + k], (HIST_HEIGHT - j - 1) * 8);
+                printBlock(temp > 8 ? 8 : temp);
             }
-            if (j == 2)
+            if (j == HIST_HEIGHT - 1)
             {
                 printf("%4d\n", ((i + 1) * 64) - 1);
             }
