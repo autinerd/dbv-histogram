@@ -27,9 +27,7 @@ int8_t getPgmPicture(char* filename, pgm* picture) {
         return -1;
     }
     for (uint64_t i = 0; i < picture->height * picture->width; i++) {
-        int d = fgetc(pic);
-        printf("%d, %u\n", d, (uint8_t)d);
-        picture->map[i] = (uint8_t)d;
+        picture->map[i] = (uint8_t)fgetc(pic);
     }
     fclose(pic);
     return 0;
