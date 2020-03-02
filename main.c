@@ -33,11 +33,15 @@ uint32_t histogram[256];
 int main(int argc, char *argv[])
 {
     pgm picture;
-    char error;
-    if ((error = getPgmPicture(argc > 0 ? argv[1] : "Britishblue.pgm", &picture)) != 0)
+    if (argc != 1)
+    {
+        printf("Keine Datei angegeben.\n");
+        return 1;
+    }
+    if (getPgmPicture(argv[1], &picture) != 0)
     {
         printf("Datei konnte nicht geöffnet werden.\n");
-        return error;
+        return 1;
     }
     println("Breite: %u", picture.width);
     println("Höhe: %u", picture.height);
@@ -59,13 +63,9 @@ int main(int argc, char *argv[])
 
 void getHistogram(pgm *picture, uint32_t *histogram)
 {
-    for (uint16_t i = 0; i <= 255; i++)
+    for (uint64_t i = 0; i < picture->height * picture->width; i++)
     {
-        histogram[i] = 0;
-    }
-    for (uint64_t i2 = 0; i2 < picture->height * picture->width; i2++)
-    {
-        histogram[picture->map[i2]]++;
+        histogram[picture->map[i]]++;
     }
 }
 
@@ -132,7 +132,7 @@ uint32_t maxValue()
 void printHistogram(uint32_t *buf)
 {
     uint8_t scaled_data[256];
-    uint32_t max = maxValue(buf);
+    uint32_t max = maxValue();
     for (uint16_t i = 0; i < 256; i++)
     {
         scaled_data[i] = buf[i] * (8 * HIST_HEIGHT) / max;
