@@ -33,7 +33,7 @@ uint32_t histogram[256];
 int main(int argc, char *argv[])
 {
     pgm picture;
-    if (argc != 1)
+    if (argc != 2)
     {
         printf("Keine Datei angegeben.\n");
         return 1;
