@@ -4,6 +4,8 @@
 #include <string.h>
 #include <math.h>
 
+#define DEBUG 0
+
 #define println(format, ...) printf(format "\n", __VA_ARGS__)
 
 #define ZERO_EIGHTS " "
@@ -22,11 +24,12 @@
 void getHistogram(pgm *picture, uint32_t *buf);
 uint32_t maxValue();
 void printBlock(uint8_t block);
-void printHistogram(uint32_t *buf);
+void printHistogram(uint32_t *buf, uint8_t brightness, uint8_t contrast);
 uint8_t subtractSaturate(uint8_t a, uint8_t b);
 double calcBrightness(pgm *picture);
 double calcContrast(pgm *picture);
 double calcEntropy(pgm *picture);
+void printTable(pgm* picture, double brightness, double contrast, double entropy);
 
 uint32_t histogram[256];
 
@@ -43,20 +46,17 @@ int main(int argc, char *argv[])
         printf("Datei konnte nicht geöffnet werden.\n");
         return 1;
     }
-    println("Breite: %u", picture.width);
-    println("Höhe: %u", picture.height);
-    println("Anzahl Pixel: %u", picture.height * picture.width);
     getHistogram(&picture, histogram);
+#if DEBUG == 1
     printf("Histogramm: [");
     for (uint8_t i = 0; i < UINT8_MAX; i++)
     {
         printf("%u, ", histogram[i]);
     }
     println("%u]", histogram[UINT8_MAX]);
-    printHistogram(histogram);
-    println("Helligkeit: %.2lf", calcBrightness(&picture));
-    println("Kontrast: %.2lf", calcContrast(&picture));
-    println("Entropie: %.2lf", calcEntropy(&picture));
+#endif
+    printTable(&picture, calcBrightness(&picture), calcContrast(&picture), calcEntropy(&picture));
+    printHistogram(histogram, (uint8_t)floor(calcBrightness(&picture)), (uint8_t)floor(calcContrast(&picture)));
     free(picture.map);
     return 0;
 }
@@ -129,7 +129,7 @@ uint32_t maxValue()
  * 192 ████████████████████████████████████████████████████████████████ 255
  */
 
-void printHistogram(uint32_t *buf)
+void printHistogram(uint32_t *buf, uint8_t brightness, uint8_t contrast)
 {
     uint8_t scaled_data[256];
     uint32_t max = maxValue();
@@ -149,12 +149,31 @@ void printHistogram(uint32_t *buf)
             {
                 printf("    ");
             }
+            printf("\e[100m");
             for (uint16_t k = 0; k < 64; k++)
             {
                 uint8_t temp;
                 temp = subtractSaturate(scaled_data[i * 64 + k], (HIST_HEIGHT - j - 1) * 8);
+                if (i * 64 + k == brightness)
+                {
+                    printf("\e[95m\e[45m");
+                }
+                else if (i * 64 + k >= brightness - contrast && i * 64 + k <= brightness + contrast)
+                {
+                    printf("\e[91m\e[41m");
+                }
                 printBlock(temp > 8 ? 8 : temp);
+                if (i * 64 + k == brightness)
+                {
+                    printf("\e[100m\e[39m");
+                }
+                else if (i * 64 + k >= brightness - contrast && i * 64 + k <= brightness + contrast)
+                {
+                    printf("\e[100m\e[39m");
+                }
+                
             }
+            printf("\e[0m");
             if (j == HIST_HEIGHT - 1)
             {
                 printf("%4d\n", ((i + 1) * 64) - 1);
@@ -165,6 +184,12 @@ void printHistogram(uint32_t *buf)
             }
             
         }
+        printf("    ");
+        for (uint8_t k = 0; k < 64; k++)
+        {
+            printf("\e[48;5;%um \e[0m", 232 + (uint8_t)floor((i * 64 + k) / 11));
+        }
+        printf("\n\n");
     }
 }
 
@@ -215,4 +240,16 @@ void printBlock(uint8_t block)
     default:
         break;
     }
+}
+
+void printTable(pgm* picture, double brightness, double contrast, double entropy)
+{
+    printf("╔══════════════════════╦══════════════════════╗\n");
+    printf("║ Breite               ║ %20u ║\n", picture->width);
+    printf("║ Höhe                 ║ %20u ║\n", picture->height);
+    printf("║ Anzahl Pixel         ║ %20u ║\n", picture->height * picture->width);
+    printf("║ \e[95mHelligkeit\e[0m           ║ \e[95m%20.2f\e[0m ║\n", brightness);
+    printf("║ \e[91mKontrast\e[0m             ║ \e[91m%20.2f\e[0m ║\n", contrast);
+    printf("║ Entropie             ║ %20.2f ║\n", entropy);
+    printf("╚══════════════════════╩══════════════════════╝\n\n");
 }
