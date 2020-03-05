@@ -1,14 +1,23 @@
 #include "pgm.h"
+#include "ppm.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 
+#define NO_TYPE 0
+#define PGM_TYPE 1
+#define PPM_TYPE 2
+
+#define RED 0
+#define GREEN 1
+#define BLUE 2
+
 #define DEBUG 0
 
 #define println(format, ...) printf(format "\n", __VA_ARGS__)
 
-#define ZERO_EIGHTS " "
+#define ZERO_EIGHTS " "
 #define ONE_EIGHTS "▁"
 #define TWO_EIGHTS "▂"
 #define THREE_EIGHTS "▃"
@@ -17,87 +26,107 @@
 #define SIX_EIGHTS "▆"
 #define SEVEN_EIGHTS "▇"
 #define EIGHT_EIGHTS "█"
-#define HIST_CHAR_LEN 3
 
 #define HIST_HEIGHT 5
 
-void getHistogram(pgm *picture, uint32_t *buf);
+void getHistogram(size_t size, uint8_t *picture, uint32_t *histogram);
 uint32_t maxValue();
 void printBlock(uint8_t block);
 void printHistogram(uint32_t *buf, uint8_t brightness, uint8_t contrast);
 uint8_t subtractSaturate(uint8_t a, uint8_t b);
-double calcBrightness(pgm *picture);
-double calcContrast(pgm *picture);
-double calcEntropy(pgm *picture);
-void printTable(pgm* picture, double brightness, double contrast, double entropy);
-
-uint32_t histogram[256];
+double calcBrightness(size_t size, uint32_t* histogram);
+double calcContrast(size_t size, uint32_t* histogram);
+double calcEntropy(size_t size, uint32_t* histogram);
+void printTable(pgm *picture, double brightness, double contrast, double entropy);
 
 int main(int argc, char *argv[])
 {
+    uint32_t histogram[256];
     pgm picture;
+    ppm picture_ppm;
+    int8_t loadResult;
+    uint8_t picType = NO_TYPE;
     if (argc != 2)
     {
         printf("Keine Datei angegeben.\n");
         return 1;
     }
-    if (getPgmPicture(argv[1], &picture) != 0)
+    if (strcmp(argv[1][strlen(argv[1]) - 4], ".ppm") == 0)
+    {
+        picType = PPM_TYPE;
+        loadResult = getPpmPicture(argv[1], &picture_ppm);
+    }
+    else if (strcmp(argv[1][strlen(argv[1]) - 4], ".pgm") == 0)
+    {
+        picType = PGM_TYPE;
+        loadResult = getPgmPicture(argv[1], &picture);
+    }
+    if (loadResult != 0)
     {
         printf("Datei konnte nicht geöffnet werden.\n");
         return 1;
     }
-    getHistogram(&picture, histogram);
-#if DEBUG == 1
-    printf("Histogramm: [");
-    for (uint8_t i = 0; i < UINT8_MAX; i++)
+    if (picType == PPM_TYPE)
     {
-        printf("%u, ", histogram[i]);
+
     }
-    println("%u]", histogram[UINT8_MAX]);
+    else
+    {
+        size_t size = picture.width * picture.height;
+        getHistogram(size, picture.map, histogram);
+#if DEBUG == 1
+        printf("Histogramm: [");
+        for (uint8_t i = 0; i < UINT8_MAX; i++)
+        {
+            printf("%u, ", histogram[i]);
+        }
+        println("%u]", histogram[UINT8_MAX]);
 #endif
-    printTable(&picture, calcBrightness(&picture), calcContrast(&picture), calcEntropy(&picture));
-    printHistogram(histogram, (uint8_t)floor(calcBrightness(&picture)), (uint8_t)floor(calcContrast(&picture)));
-    free(picture.map);
+        printTable(&picture, calcBrightness(&picture), calcContrast(&picture), calcEntropy(&picture));
+        printHistogram(histogram, (uint8_t)floor(calcBrightness(&picture)), (uint8_t)floor(calcContrast(&picture)));
+        free(picture.map);
+    }
+
     return 0;
 }
 
-void getHistogram(pgm *picture, uint32_t *histogram)
+void getHistogram(size_t size, uint8_t *picture, uint32_t* histogram)
 {
-    for (uint64_t i = 0; i < picture->height * picture->width; i++)
+    for (size_t i = 0; i < size; i++)
     {
-        histogram[picture->map[i]]++;
+        histogram[picture[i]]++;
     }
 }
 
-double calcBrightness(pgm *picture)
+double calcBrightness(size_t size, uint32_t* histogram)
 {
-    uint64_t sum = 0ULL;
+    uint64_t sum = 0UL;
     for (uint16_t val = 0; val < 256; val++)
     {
         sum += histogram[val] * val;
     }
-    return ((double)sum / (picture->height * picture->width));
+    return ((double)sum / size);
 }
 
-double calcContrast(pgm *picture)
+double calcContrast(size_t size, uint32_t* histogram)
 {
-    uint8_t brightness = (uint8_t)calcBrightness(picture);
+    uint8_t brightness = (uint8_t)calcBrightness(size, histogram);
     uint64_t sum = 0UL;
     for (uint16_t val = 0; val < 256; val++)
     {
         sum += histogram[val] * (val - brightness) * (val - brightness);
     }
-    return sqrt(sum / (double)(picture->height * picture->width));
+    return sqrt(sum / (double)size);
 }
 
-double calcEntropy(pgm *picture)
+double calcEntropy(size_t size, uint32_t* histogram)
 {
     double sum = 0.0;
-    double count = picture->height * picture->width;
     for (uint16_t val = 0; val < 256; val++)
     {
-        if (histogram[val] == 0) continue;
-        sum += (histogram[val] / count) * log2(histogram[val] / count);
+        if (histogram[val] == 0)
+            continue;
+        sum += ((double)histogram[val] / size) * log2((double)histogram[val] / size);
     }
     return -sum;
 }
@@ -171,7 +200,6 @@ void printHistogram(uint32_t *buf, uint8_t brightness, uint8_t contrast)
                 {
                     printf("\e[100m\e[39m");
                 }
-                
             }
             printf("\e[0m");
             if (j == HIST_HEIGHT - 1)
@@ -182,7 +210,6 @@ void printHistogram(uint32_t *buf, uint8_t brightness, uint8_t contrast)
             {
                 printf("\n");
             }
-            
         }
         printf("    ");
         for (uint8_t k = 0; k < 64; k++)
@@ -242,7 +269,7 @@ void printBlock(uint8_t block)
     }
 }
 
-void printTable(pgm* picture, double brightness, double contrast, double entropy)
+void printTable(pgm *picture, double brightness, double contrast, double entropy)
 {
     printf("╔══════════════════════╦══════════════════════╗\n");
     printf("║ Breite               ║ %20u ║\n", picture->width);
