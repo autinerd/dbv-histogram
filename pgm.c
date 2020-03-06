@@ -15,7 +15,7 @@ int8_t getPgmPicture(char* filename, pgm* picture) {
     char line[64];
     // get type of picture
     check_null(fgets(line, sizeof(line), pic));
-    if (strcmp(line, "P5") != 0)
+    if (strcmp(line, "P5\n") != 0)
     {
         return -1;
     }
