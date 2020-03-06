@@ -13,6 +13,8 @@ typedef struct {
     uint8_t max;
 } pic_numbers;
 
+#define VALUE_COUNT 256
+
 #define NO_TYPE 0
 #define PGM_TYPE 1
 #define PPM_TYPE 2
@@ -54,13 +56,13 @@ typedef struct {
 #define EIGHT_EIGHTS "█"
 
 uint8_t histWidth = 128;
-uint8_t histHeight = 25;
+uint8_t histHeight = 10;
 
 void getHistogram(size_t size, uint8_t *picture, uint32_t *histogram);
 uint32_t maxValue();
 void printBlock(uint8_t block);
 void printHistogram(uint32_t *histogram, pic_numbers* p, uint8_t colorType);
-uint8_t subtractSaturate(uint8_t a, uint8_t b);
+uint8_t subtractSaturate(uint32_t a, uint32_t b);
 double calcBrightness(size_t size, uint32_t* histogram);
 double calcContrast(size_t size, uint32_t* histogram);
 double calcEntropy(size_t size, uint32_t* histogram);
@@ -80,6 +82,13 @@ int main(int argc, char** argv)
     {
         printf("Keine Datei angegeben.\n");
         return 1;
+    }
+    if (argc == 3)
+    {
+        if ((histHeight = strtoul(argv[2], NULL, 10)) == 0)
+        {
+            histHeight = 10;
+        }
     }
     if (strcmp(&(argv[1][strlen(argv[1]) - 4]), ".ppm") == 0)
     {
@@ -243,19 +252,21 @@ uint32_t maxValue(uint32_t* histogram)
 void printHistogram(uint32_t *histogram, pic_numbers* p, uint8_t colorType)
 {
     uint8_t brightness = (uint8_t)floor(p->brightness), contrast = (uint8_t)floor(p->contrast);
-    uint8_t scaled_data[256];
+    uint32_t scaled_data[256];
     uint32_t max = maxValue(histogram);
+
     for (uint16_t i = 0; i < 256; i++)
     {
         scaled_data[i] = histogram[i] * (8 * histHeight) / max;
     }
-    for (uint8_t i = 0; i < 256 / histWidth; i++)
+
+    for (uint8_t i = 0; i < ceil(256 / (double)histWidth); i++)
     {
-        for (uint8_t j = 0; j < histHeight; j++)
+        for (uint16_t j = 0; j < histHeight; j++)
         {
             if (j == histHeight - 1)
             {
-                printf("%3d ", i * 64);
+                printf("%3d ", i * histWidth);
             }
             else
             {
@@ -326,9 +337,9 @@ void printHistogram(uint32_t *histogram, pic_numbers* p, uint8_t colorType)
     }
 }
 
-uint8_t subtractSaturate(uint8_t a, uint8_t b)
+uint8_t subtractSaturate(uint32_t a, uint32_t b)
 {
-    return (((int32_t)a - b) < 0) ? 0 : a - b;
+    return (((int32_t)a - (int32_t)b) < 0) ? 0 : a - b;
 }
 
 void printBlock(uint8_t block)

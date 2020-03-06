@@ -1,2 +1,6 @@
 /dbv-histogram*
 *.s
+*.p[pg]m
+*.JPG
+*.JPG
+*.png
