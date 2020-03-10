@@ -252,7 +252,7 @@ uint32_t maxValue(uint32_t* histogram)
 void printHistogram(uint32_t *histogram, pic_numbers* p, uint8_t colorType)
 {
     uint8_t brightness = (uint8_t)floor(p->brightness), contrast = (uint8_t)floor(p->contrast);
-    uint32_t scaled_data[256];
+    uint64_t scaled_data[256];
     uint32_t max = maxValue(histogram);
 
     for (uint16_t i = 0; i < 256; i++)
@@ -339,7 +339,8 @@ void printHistogram(uint32_t *histogram, pic_numbers* p, uint8_t colorType)
 
 uint8_t subtractSaturate(uint32_t a, uint32_t b)
 {
-    return (((int32_t)a - (int32_t)b) < 0) ? 0 : a - b;
+    int32_t sum = (int32_t)a - (int32_t)b;
+    return (sum > 0) ? (sum < 8 ? sum : 8) : 0;
 }
 
 void printBlock(uint8_t block)
